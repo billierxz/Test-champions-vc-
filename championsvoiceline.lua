@@ -17,6 +17,7 @@ local copyToClipboard = setclipboard or toclipboard or set_clipboard or (Clipboa
 -- ==========================================
 local SAVE_FILE = "ChampionsRiseVoicelines_V8.json"
 local VolumeData = {}
+local CustomQuoteEdits = {}
 local VoicelinesActivas = true
 local VfxActivos = true
 local SoloMisVoces = false
@@ -267,7 +268,6 @@ local function isQueenOfTheDeadMorph(char)
         local wandaFolder = unlockedSkins and unlockedSkins:FindFirstChild("WandaMaximoff")
         local queenSkinObj = wandaFolder and wandaFolder:FindFirstChild("Wanda Maximoff: Queen of the Dead")
 
-        -- Revisar valores equipados en Data o en el personaje
         for _, folderName in ipairs({"EquippedSkins", "SelectedSkins", "CurrentSkins", "ActiveSkins"}) do
             local eqFolder = dataFolder and dataFolder:FindFirstChild(folderName)
             local eqWanda = eqFolder and eqFolder:FindFirstChild("WandaMaximoff")
@@ -510,7 +510,9 @@ local EXTRA_ANIM_DATA = {
             "https://github.com/billierxz/Champions-rise-Vcs/blob/27dcc7aa3f1e956882425d1f97d0e3a806827a40/mix_and_i_warn_you__91C37F1_.mp3",
             "https://github.com/billierxz/Champions-rise-Vcs/blob/0e04d16ef600bb7643f72259e1a7a507baaa5796/denoise_Nuevo_proyecto__366B0AC_.mp3",
             "https://github.com/billierxz/Champions-rise-Vcs/blob/1aba92edff6ae97f4508c39ac4a8d9fdf806a973/mix_i_just_did__CECEBE1_.mp3",
-            "https://github.com/billierxz/Champions-rise-Vcs/blob/4906c2b0e8e0e6c6b61e6684c48242bea97f670c/waiting%20for%20me...mp3"
+            "https://github.com/billierxz/Champions-rise-Vcs/blob/4906c2b0e8e0e6c6b61e6684c48242bea97f670c/waiting%20for%20me...mp3",
+            "https://github.com/billierxz/Champions-rise-Vcs/blob/f2b211c9ab62d51511c1303a52511d27c9e3e8e9/you%20have%20exhausted%20my%20patience.mp3",
+            "https://github.com/billierxz/Champions-rise-Vcs/blob/07a6782049da5a334bb27d3154446a45341a1da2/get%20out%20of%20my%20way..mp3"
         },
         displayNames={
             "I've come to ease your pain",
@@ -518,7 +520,9 @@ local EXTRA_ANIM_DATA = {
             "And I want you to leave",
             "They never know",
             "I just did.. It feel like that",
-            "They've waiting for me.."
+            "They've waiting for me..",
+            "you have exhausted my patience",
+            "Get out of my way."
         },
         quotes={
             {t1="I've come to ease", start=0, split=0.9, t2="your pain"},
@@ -526,11 +530,14 @@ local EXTRA_ANIM_DATA = {
             {t1="And I want you", start=0, split=2, t2="to leave"},
             {t1="They never", start=0, split=1, t2="know"},
             {t1="I just did..", start=0, split=2, t2="do know how it felt?", split2=2, t3="it feel like that"},
-            {t1="They've waiting for me..", start=0, split=0, t2=""}
+            {t1="They've waiting for me..", start=0, split=0, t2=""},
+            {t1="you have exhausted my patience", start=0, split=0, t2=""},
+            {t1="Get out of my way.", start=0, split=0, t2=""}
         },
-        defaultVols={3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
-        nocancel={true, true, true, true, true, true},
-        requiresQueenMorph={false, false, false, false, false, true}
+        defaultVols={3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
+        nocancel={true, true, true, true, true, true, true, true},
+        requiresQueenMorph={false, false, false, false, false, true, false, false},
+        excludeQueenMorph={false, true, false, false, false, false, false, false}
     },
     {
         id=98443117457067, name="beam zombie", char="WANDA ZOMBIE", mode="cycle", group="main",
@@ -663,6 +670,9 @@ if isfile and isfile(SAVE_FILE) then
             VolumeData = decoded
             if VolumeData._vfxEnabled ~= nil then VfxActivos = VolumeData._vfxEnabled end
             if VolumeData._onlyMe ~= nil then SoloMisVoces = VolumeData._onlyMe end
+            if type(VolumeData._customQuotes) == "table" then
+                CustomQuoteEdits = VolumeData._customQuotes
+            end
             if type(VolumeData._globeInnerHex) == "string" then
                 local col, norm = parseHexColor(VolumeData._globeInnerHex)
                 if col then
@@ -683,6 +693,7 @@ end
 local function saveConfig()
     VolumeData._vfxEnabled = VfxActivos
     VolumeData._onlyMe = SoloMisVoces
+    VolumeData._customQuotes = CustomQuoteEdits
     VolumeData._globeInnerHex = CustomGlobeHex
     VolumeData._globeInnerName = CustomGlobeName
     VolumeData._savedGlobeColors = SavedGlobeColors
@@ -697,6 +708,40 @@ local function getClipVolume(volKey, defaultVol)
         return v
     end
     return defaultVol or 3.0
+end
+
+local function getEffectiveQuoteSpec(animData, clipIdx)
+    local baseQ = (animData.quotes and animData.quotes[clipIdx]) or {
+        t1 = animData.displayNames[clipIdx] or animData.name,
+        start = 0,
+        split = 0,
+        t2 = "",
+        split2 = 0,
+        t3 = "",
+        audioDelay = 0
+    }
+    local editKey = tostring(animData.id) .. "_" .. tostring(clipIdx)
+    local saved = CustomQuoteEdits[editKey]
+    if type(saved) == "table" then
+        return {
+            t1 = saved.t1 ~= nil and tostring(saved.t1) or (baseQ.t1 or ""),
+            start = tonumber(saved.start) or tonumber(baseQ.start) or 0,
+            split = tonumber(saved.split) or tonumber(baseQ.split) or 0,
+            t2 = saved.t2 ~= nil and tostring(saved.t2) or (baseQ.t2 or ""),
+            split2 = tonumber(saved.split2) or tonumber(baseQ.split2) or 0,
+            t3 = saved.t3 ~= nil and tostring(saved.t3) or (baseQ.t3 or ""),
+            audioDelay = tonumber(saved.audioDelay) or tonumber(baseQ.audioDelay) or 0
+        }
+    end
+    return {
+        t1 = baseQ.t1 or "",
+        start = tonumber(baseQ.start) or 0,
+        split = tonumber(baseQ.split) or 0,
+        t2 = baseQ.t2 or "",
+        split2 = tonumber(baseQ.split2) or 0,
+        t3 = baseQ.t3 or "",
+        audioDelay = tonumber(baseQ.audioDelay) or 0
+    }
 end
 
 -- ==========================================
@@ -2593,12 +2638,6 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
     extraLastPlay[animData.id] = now
 
     local isLocalChar = (targetChar == player.Character)
-    local causedInterference = false
-    if isLocalChar and activeSong and not activeSong.stopping then
-        causedInterference = true
-        beginSongInterference()
-    end
-
     local sessionId = tick()
     local cancelled = false
     local bubbleData = {
@@ -2608,24 +2647,31 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
         isSadDeath = (animData.id == 99999999999999)
     }
 
-    local function finishSession(pStart, minVis)
-        if causedInterference then
-            endSongInterference()
-        end
-        scheduleBubbleEnd(targetChar, sessionId, pStart or tick(), minVis or 0)
-    end
-
     -- MODO CUT (Carrie Push / Scrim)
     if animData.mode == "cut" or animData.group == "push1" or animData.group == "scrim" then
         local cut = PUSH_CUTS[animData.id]
         if not cut then return end
 
+        local causedInterference = false
+        if isLocalChar and activeSong and not activeSong.stopping then
+            causedInterference = true
+            beginSongInterference()
+        end
+
+        local function finishCutSession(pStart, minVis)
+            if causedInterference then endSongInterference() end
+            scheduleBubbleEnd(targetChar, sessionId, pStart or tick(), minVis or 0)
+        end
+
         local volKey = tostring(animData.id) .. "_1"
         local vol = getClipVolume(volKey, animData.defaultVols[1] or 3.0)
-        local qSpec = (animData.quotes and animData.quotes[1]) or {t1 = animData.displayNames[1] or animData.name, start = 0, split = 0, t2 = ""}
+        local qSpec = getEffectiveQuoteSpec(animData, 1)
 
         local src = getAudioSource(cut.file, "extra_" .. animData.id .. "_1", "url")
-        if not src then return end
+        if not src then
+            if causedInterference then endSongInterference() end
+            return
+        end
         if isPreview and myPreviewToken ~= previewSessionToken then return end
 
         local sound = Instance.new("Sound")
@@ -2637,7 +2683,7 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
         if isPreview then table.insert(activePreviewSounds, sound) end
 
         local idx = #activeExtraVoices + 1
-        activeExtraVoices[idx] = {sound = sound, char = targetChar, animId = animData.id, sessionId = sessionId, noCancel = isPreview and false or false}
+        activeExtraVoices[idx] = {sound = sound, char = targetChar, animId = animData.id, sessionId = sessionId, noCancel = false}
 
         local pStart = tick()
         local minVis = runBubbleTimeline(targetChar, bubbleData, sessionId, qSpec.t1, qSpec.start, qSpec.split, qSpec.t2, false, qSpec.split2, qSpec.t3)
@@ -2652,7 +2698,7 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
             if not VoicelinesActivas and not isPreview then
                 pcall(function() sound:Stop(); sound:Destroy() end)
                 activeExtraVoices[idx] = nil
-                finishSession(pStart, minVis)
+                finishCutSession(pStart, minVis)
                 return
             end
 
@@ -2688,7 +2734,7 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
                                 TweenService:Create(sound, TweenInfo.new(0.2), {Volume = 0}):Play()
                                 task.delay(0.2, function() pcall(function() sound:Stop(); sound:Destroy() end) end)
                             end)
-                            finishSession(pStart, minVis)
+                            finishCutSession(pStart, minVis)
                         end
                     end
                 end)
@@ -2698,7 +2744,7 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
                 if activeExtraVoices[idx] then
                     activeExtraVoices[idx] = nil
                     pcall(function() sound:Stop(); sound:Destroy() end)
-                    finishSession(pStart, minVis)
+                    finishCutSession(pStart, minVis)
                 end
             end)
         end)
@@ -2710,6 +2756,15 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
         stopMainExtraForChar(targetChar)
     end
     local currentSounds = {}
+    local causedInterference = false
+
+    local function finishSession(pStart, minVis)
+        if causedInterference then
+            causedInterference = false
+            endSongInterference()
+        end
+        scheduleBubbleEnd(targetChar, sessionId, pStart or tick(), minVis or 0)
+    end
 
     local function onCancel()
         if cancelled then return end
@@ -2729,7 +2784,10 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
             end
         end
         if stoppedAny then
-            if causedInterference then endSongInterference() end
+            if causedInterference then
+                causedInterference = false
+                endSongInterference()
+            end
             endVoicelineEffect(targetChar, sessionId)
         end
     end
@@ -2739,6 +2797,11 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
     end
 
     if animData.mode == "chain" and not forceIndex then
+        if isLocalChar and activeSong and not activeSong.stopping then
+            causedInterference = true
+            beginSongInterference()
+        end
+
         local function playChainStep(stepIdx)
             if cancelled or (not VoicelinesActivas and not isPreview) then return end
             if isPreview and myPreviewToken ~= previewSessionToken then return end
@@ -2754,7 +2817,7 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
 
             local volKey = tostring(animData.id) .. "_" .. tostring(stepIdx)
             local vol = getClipVolume(volKey, animData.defaultVols[stepIdx] or 3.0)
-            local qSpec = (animData.quotes and animData.quotes[stepIdx]) or {t1 = animData.displayNames[stepIdx] or animData.name, start = 0, split = 0, t2 = ""}
+            local qSpec = getEffectiveQuoteSpec(animData, stepIdx)
             local isNoCancel = (not isPreview) and ((animData.group == "main_nocancel") or (animData.nocancel and animData.nocancel[stepIdx] == true))
 
             local src = getAudioSource(animData.files[stepIdx], "extra_" .. animData.id .. "_" .. stepIdx, "url")
@@ -2810,7 +2873,15 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
             local hasQueenMorph = isQueenOfTheDeadMorph(targetChar)
             for i = 1, #animData.files do
                 local needsQueen = animData.requiresQueenMorph and animData.requiresQueenMorph[i] == true
-                if not needsQueen or hasQueenMorph then
+                local blockQueen = animData.excludeQueenMorph and animData.excludeQueenMorph[i] == true
+                local allowed = true
+                if needsQueen and not hasQueenMorph then
+                    allowed = false
+                end
+                if blockQueen and hasQueenMorph then
+                    allowed = false
+                end
+                if allowed then
                     table.insert(eligibleIndices, i)
                 end
             end
@@ -2826,44 +2897,58 @@ local function playExtraVoiceline(animData, targetChar, animTrack, forceIndex, i
 
         local volKey = tostring(animData.id) .. "_" .. tostring(clipIdx)
         local vol = getClipVolume(volKey, animData.defaultVols[clipIdx] or 3.0)
-        local qSpec = (animData.quotes and animData.quotes[clipIdx]) or {t1 = animData.displayNames[clipIdx] or animData.name, start = 0, split = 0, t2 = ""}
+        local qSpec = getEffectiveQuoteSpec(animData, clipIdx)
         local isNoCancel = (not isPreview) and ((animData.group == "main_nocancel") or (animData.nocancel and animData.nocancel[clipIdx] == true))
+        local audioDelay = math.max(0, tonumber(qSpec.audioDelay) or 0)
 
-        local src = getAudioSource(animData.files[clipIdx], "extra_" .. animData.id .. "_" .. clipIdx, "url")
-        if not src then
-            if causedInterference then endSongInterference() end
-            return
+        local function startClipExecution()
+            if cancelled or (not VoicelinesActivas and not isPreview) then return end
+            if isPreview and myPreviewToken ~= previewSessionToken then return end
+
+            local src = getAudioSource(animData.files[clipIdx], "extra_" .. animData.id .. "_" .. clipIdx, "url")
+            if not src then return end
+            if isPreview and myPreviewToken ~= previewSessionToken then return end
+
+            if isLocalChar and activeSong and not activeSong.stopping then
+                causedInterference = true
+                beginSongInterference()
+            end
+
+            local pStart = tick()
+            local minVis = runBubbleTimeline(targetChar, bubbleData, sessionId, qSpec.t1, qSpec.start, qSpec.split, qSpec.t2, false, qSpec.split2, qSpec.t3)
+
+            local sound = Instance.new("Sound")
+            sound.SoundId = src
+            sound.Volume = math.clamp(vol, 0, 10)
+            sound.Looped = false
+            sound:SetAttribute("IsCustomVoice", true)
+            sound.Parent = isPreview and CoreGui or player:WaitForChild("PlayerGui")
+            if isPreview then table.insert(activePreviewSounds, sound) end
+
+            local idx = #activeExtraVoices + 1
+            local sInfo = {sound = sound, char = targetChar, animId = animData.id, sessionId = sessionId, noCancel = isNoCancel, idx = idx}
+            activeExtraVoices[idx] = sInfo
+            table.insert(currentSounds, sInfo)
+
+            local finished = false
+            local function onDone()
+                if finished then return end
+                finished = true
+                activeExtraVoices[idx] = nil
+                pcall(function() sound:Stop(); sound:Destroy() end)
+                finishSession(pStart, minVis)
+            end
+
+            sound.Ended:Connect(onDone)
+            task.delay(10, onDone)
+            sound:Play()
         end
-        if isPreview and myPreviewToken ~= previewSessionToken then return end
 
-        local pStart = tick()
-        local minVis = runBubbleTimeline(targetChar, bubbleData, sessionId, qSpec.t1, qSpec.start, qSpec.split, qSpec.t2, false, qSpec.split2, qSpec.t3)
-
-        local sound = Instance.new("Sound")
-        sound.SoundId = src
-        sound.Volume = math.clamp(vol, 0, 10)
-        sound.Looped = false
-        sound:SetAttribute("IsCustomVoice", true)
-        sound.Parent = isPreview and CoreGui or player:WaitForChild("PlayerGui")
-        if isPreview then table.insert(activePreviewSounds, sound) end
-
-        local idx = #activeExtraVoices + 1
-        local sInfo = {sound = sound, char = targetChar, animId = animData.id, sessionId = sessionId, noCancel = isNoCancel, idx = idx}
-        activeExtraVoices[idx] = sInfo
-        table.insert(currentSounds, sInfo)
-
-        local finished = false
-        local function onDone()
-            if finished then return end
-            finished = true
-            activeExtraVoices[idx] = nil
-            pcall(function() sound:Stop(); sound:Destroy() end)
-            finishSession(pStart, minVis)
+        if audioDelay > 0 then
+            task.delay(audioDelay, startClipExecution)
+        else
+            startClipExecution()
         end
-
-        sound.Ended:Connect(onDone)
-        task.delay(10, onDone)
-        sound:Play()
     end
 end
 
@@ -3097,6 +3182,7 @@ local TAB_DEFS = {
     {id = "ELEVEN",       label = "ELEVEN",       color = Color3.fromRGB(95, 115, 225)},
     {id = "ATOM",         label = "ATOM",         color = Color3.fromRGB(55, 165, 215)},
     {id = "COLOR GLOB",   label = "COLOR GLOB",   color = Color3.fromRGB(65, 155, 235)},
+    {id = "TIEMPOS",      label = "TIEMPOS",      color = Color3.fromRGB(155, 85, 235)},
 }
 
 local tabButtons = {}
@@ -3144,7 +3230,7 @@ for idx, def in ipairs(TAB_DEFS) do
     local btn = Instance.new("TextButton")
     btn.Name = "TabBtn_" .. def.id
     btn.LayoutOrder = idx
-    btn.Size = UDim2.new(0, math.max(88, #def.label * 8 + 22), 0, 30)
+    btn.Size = UDim2.new(0, math.max(82, #def.label * 8 + 20), 0, 30)
     btn.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
     btn.Text = def.label
     btn.TextColor3 = Color3.fromRGB(155, 160, 185)
@@ -3154,9 +3240,9 @@ for idx, def in ipairs(TAB_DEFS) do
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
     tabButtons[def.id] = btn
-    if def.id == "COLOR GLOB" then
+    if def.id == "COLOR GLOB" or def.id == "TIEMPOS" then
         local frame = Instance.new("Frame")
-        frame.Name = "ColorGlobChangerTab"
+        frame.Name = "CustomTab_" .. def.id
         frame.Size = UDim2.new(1, -30, 1, -112)
         frame.Position = UDim2.new(0, 15, 0, 104)
         frame.BackgroundTransparency = 1
@@ -3207,8 +3293,11 @@ local function createVoicelineCard(parentScroll, config)
     typeDot.Parent = row
     Instance.new("UICorner", typeDot).CornerRadius = UDim.new(1, 0)
 
+    local hasEditBtn = (config.onEditTimings ~= nil)
+    local lblRightPad = hasEditBtn and -186 or -110
+
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -110, 0, 24)
+    lbl.Size = UDim2.new(1, lblRightPad, 0, 24)
     lbl.Position = UDim2.new(0, 28, 0, 9)
     lbl.BackgroundTransparency = 1
     lbl.Text = config.title .. (config.badge and ("  [" .. config.badge .. "]") or "")
@@ -3216,7 +3305,24 @@ local function createVoicelineCard(parentScroll, config)
     lbl.Font = Enum.Font.GothamBold
     lbl.TextSize = 13
     lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextTruncate = Enum.TextTruncate.AtEnd
     lbl.Parent = row
+
+    if hasEditBtn then
+        local editTimeBtn = Instance.new("TextButton")
+        editTimeBtn.Size = UDim2.new(0, 72, 0, 24)
+        editTimeBtn.Position = UDim2.new(1, -162, 0, 9)
+        editTimeBtn.BackgroundColor3 = Color3.fromRGB(115, 65, 200)
+        editTimeBtn.Text = "TIEMPOS"
+        editTimeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        editTimeBtn.Font = Enum.Font.GothamBlack
+        editTimeBtn.TextSize = 10
+        editTimeBtn.Parent = row
+        Instance.new("UICorner", editTimeBtn).CornerRadius = UDim.new(0, 7)
+        editTimeBtn.MouseButton1Click:Connect(function()
+            config.onEditTimings()
+        end)
+    end
 
     local previewAllBtn = Instance.new("TextButton")
     previewAllBtn.Size = UDim2.new(0, 74, 0, 24)
@@ -3340,7 +3446,6 @@ local function createVoicelineCard(parentScroll, config)
                 if clip.onPreview then clip.onPreview() end
             end)
 
-            -- Slider de volumen individual del clip
             local clipVolKey = clip.volKey or (config.volKey .. "_" .. tostring(cIdx))
             local clipDefVol = clip.defVol or config.defVol or 3.0
             local cVol = getClipVolume(clipVolKey, clipDefVol)
@@ -3513,6 +3618,9 @@ do
                     order = ord,
                     volKey = tostring(d.id) .. "_1",
                     defVol = d.defaultVols[1] or 3.0,
+                    onEditTimings = (d.id == 139183919008648) and function()
+                        selectTab("TIEMPOS")
+                    end or nil,
                     onPreviewAll = function()
                         playExtraVoiceline(d, player.Character, nil, nil, true)
                     end,
@@ -3866,179 +3974,479 @@ do
     rebuildSavedColorsList()
 end
 
+-- ==========================================
+-- PESTAÑA TIEMPOS: EDITOR DE GLOBOS Y RETRASO DE VOZ + COPIAR TODO
+-- ==========================================
+do
+    local tiemposContainer = tabPages["TIEMPOS"]
+    local targetAnim = EXTRA_ANIM_BY_ID[139183919008648]
+
+    local EDITABLE_ITEMS = {
+        {clipIdx = 4, title = "4. They never know", accent = COLOR_CELESTE},
+        {clipIdx = 5, title = "5. I just did.. It feel like that", accent = COLOR_VIOLETA},
+        {clipIdx = 7, title = "7. you have exhausted my patience", accent = COLOR_ROJO},
+        {clipIdx = 8, title = "8. Get out of my way.", accent = COLOR_CELESTE},
+    }
+
+    local function formatSingleLuaConfig(item)
+        local q = getEffectiveQuoteSpec(targetAnim, item.clipIdx)
+        local esc1 = (q.t1 or ""):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n")
+        local esc2 = (q.t2 or ""):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n")
+        local esc3 = (q.t3 or ""):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n")
+        return string.format(
+            '[%d] = { -- %s\n    audioDelay = %s,\n    quote = { t1 = "%s", start = %s, split = %s, t2 = "%s", split2 = %s, t3 = "%s" }\n},',
+            item.clipIdx,
+            item.title,
+            tostring(q.audioDelay or 0),
+            esc1,
+            tostring(q.start or 0),
+            tostring(q.split or 0),
+            esc2,
+            tostring(q.split2 or 0),
+            esc3
+        )
+    end
+
+    local function buildAllLuaConfigText()
+        local lines = {"-- Tiempos de Globos y Voces (Anim: 139183919008648)"}
+        for _, item in ipairs(EDITABLE_ITEMS) do
+            table.insert(lines, formatSingleLuaConfig(item))
+        end
+        return table.concat(lines, "\n")
+    end
+
+    -- Barra superior de acciones (COPIAR TODO)
+    local headerBar = Instance.new("Frame")
+    headerBar.Size = UDim2.new(1, -6, 0, 46)
+    headerBar.Position = UDim2.new(0, 3, 0, 2)
+    headerBar.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    headerBar.Parent = tiemposContainer
+    Instance.new("UICorner", headerBar).CornerRadius = UDim.new(0, 12)
+
+    local hStroke = Instance.new("UIStroke", headerBar)
+    hStroke.Color = Color3.fromRGB(50, 50, 68)
+    hStroke.Thickness = 1
+
+    local hTitle = Instance.new("TextLabel")
+    hTitle.Size = UDim2.new(1, -138, 1, 0)
+    hTitle.Position = UDim2.new(0, 12, 0, 0)
+    hTitle.BackgroundTransparency = 1
+    hTitle.Text = "AJUSTE DE TIEMPOS (SEGUNDOS)"
+    hTitle.TextColor3 = Color3.fromRGB(215, 225, 250)
+    hTitle.Font = Enum.Font.GothamBlack
+    hTitle.TextSize = 11
+    hTitle.TextXAlignment = Enum.TextXAlignment.Left
+    hTitle.Parent = headerBar
+
+    local copyAllBtn = Instance.new("TextButton")
+    copyAllBtn.Size = UDim2.new(0, 118, 0, 30)
+    copyAllBtn.Position = UDim2.new(1, -126, 0.5, -15)
+    copyAllBtn.BackgroundColor3 = Color3.fromRGB(65, 115, 240)
+    copyAllBtn.Text = "COPIAR TODO"
+    copyAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    copyAllBtn.Font = Enum.Font.GothamBlack
+    copyAllBtn.TextSize = 11
+    copyAllBtn.Parent = headerBar
+    Instance.new("UICorner", copyAllBtn).CornerRadius = UDim.new(0, 8)
+
+    copyAllBtn.MouseButton1Click:Connect(function()
+        local dump = buildAllLuaConfigText()
+        if copyToClipboard then pcall(copyToClipboard, dump) end
+        copyAllBtn.Text = "¡COPIADO!"
+        task.delay(1.2, function()
+            if copyAllBtn and copyAllBtn.Parent then copyAllBtn.Text = "COPIAR TODO" end
+        end)
+    end)
+
+    local tScroll = Instance.new("ScrollingFrame")
+    tScroll.Size = UDim2.new(1, -6, 1, -56)
+    tScroll.Position = UDim2.new(0, 3, 0, 54)
+    tScroll.BackgroundTransparency = 1
+    tScroll.ScrollBarThickness = 4
+    tScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 130)
+    tScroll.Parent = tiemposContainer
+
+    local tLayout = Instance.new("UIListLayout", tScroll)
+    tLayout.Padding = UDim.new(0, 10)
+    tLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    RunService.RenderStepped:Connect(function()
+        if tScroll and tScroll.Parent then
+            tScroll.CanvasSize = UDim2.new(0, 0, 0, tLayout.AbsoluteContentSize.Y + 14)
+        end
+    end)
+
+    local function createSmallField(parent, labelText, initialValue, xScale, wScale, yPos, isNumber)
+        local holder = Instance.new("Frame")
+        holder.Size = UDim2.new(wScale, -6, 0, 42)
+        holder.Position = UDim2.new(xScale, 3, 0, yPos)
+        holder.BackgroundTransparency = 1
+        holder.Parent = parent
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 0, 14)
+        lbl.Position = UDim2.new(0, 2, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = labelText
+        lbl.TextColor3 = Color3.fromRGB(165, 175, 205)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 9
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = holder
+
+        local box = Instance.new("TextBox")
+        box.Size = UDim2.new(1, 0, 0, 25)
+        box.Position = UDim2.new(0, 0, 0, 16)
+        box.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+        box.Text = tostring(initialValue)
+        box.PlaceholderText = isNumber and "0" or ""
+        box.PlaceholderColor3 = Color3.fromRGB(95, 100, 120)
+        box.TextColor3 = Color3.fromRGB(255, 255, 255)
+        box.Font = Enum.Font.GothamBold
+        box.TextSize = 11
+        box.TextXAlignment = isNumber and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
+        box.ClearTextOnFocus = false
+        box.Parent = holder
+        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+        if not isNumber then
+            Instance.new("UIPadding", box).PaddingLeft = UDim.new(0, 6)
+        end
+        return box
+    end
+
+    for ordIdx, item in ipairs(EDITABLE_ITEMS) do
+        local qSpec = getEffectiveQuoteSpec(targetAnim, item.clipIdx)
+        local editKey = tostring(targetAnim.id) .. "_" .. tostring(item.clipIdx)
+
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -8, 0, 182)
+        card.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+        card.LayoutOrder = ordIdx
+        card.Parent = tScroll
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
+
+        local cStroke = Instance.new("UIStroke", card)
+        cStroke.Color = Color3.fromRGB(42, 42, 56)
+        cStroke.Thickness = 1
+
+        local cTitle = Instance.new("TextLabel")
+        cTitle.Size = UDim2.new(1, -142, 0, 24)
+        cTitle.Position = UDim2.new(0, 12, 0, 8)
+        cTitle.BackgroundTransparency = 1
+        cTitle.Text = item.title
+        cTitle.TextColor3 = item.accent
+        cTitle.Font = Enum.Font.GothamBlack
+        cTitle.TextSize = 12
+        cTitle.TextXAlignment = Enum.TextXAlignment.Left
+        cTitle.TextTruncate = Enum.TextTruncate.AtEnd
+        cTitle.Parent = card
+
+        local copyOneBtn = Instance.new("TextButton")
+        copyOneBtn.Size = UDim2.new(0, 56, 0, 22)
+        copyOneBtn.Position = UDim2.new(1, -126, 0, 9)
+        copyOneBtn.BackgroundColor3 = Color3.fromRGB(36, 38, 52)
+        copyOneBtn.Text = "COPIAR"
+        copyOneBtn.TextColor3 = Color3.fromRGB(215, 225, 255)
+        copyOneBtn.Font = Enum.Font.GothamBlack
+        copyOneBtn.TextSize = 9
+        copyOneBtn.Parent = card
+        Instance.new("UICorner", copyOneBtn).CornerRadius = UDim.new(0, 6)
+
+        local testBtn = Instance.new("TextButton")
+        testBtn.Size = UDim2.new(0, 58, 0, 22)
+        testBtn.Position = UDim2.new(1, -66, 0, 9)
+        testBtn.BackgroundColor3 = Color3.fromRGB(55, 95, 210)
+        testBtn.Text = "▶ PROBAR"
+        testBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        testBtn.Font = Enum.Font.GothamBlack
+        testBtn.TextSize = 9
+        testBtn.Parent = card
+        Instance.new("UICorner", testBtn).CornerRadius = UDim.new(0, 6)
+
+        -- Fila 1 de tiempos (segundos): Espera Audio, Inicio Globo, Pausa 1->2, Pausa 2->3
+        local audioDelayBox = createSmallField(card, "Espera Voz (s)", qSpec.audioDelay, 0.015, 0.242, 36, true)
+        local startBox      = createSmallField(card, "Globo Ini (s)",  qSpec.start,      0.258, 0.242, 36, true)
+        local split1Box     = createSmallField(card, "Pausa 1→2 (s)",  qSpec.split,      0.500, 0.242, 36, true)
+        local split2Box     = createSmallField(card, "Pausa 2→3 (s)",  qSpec.split2,     0.742, 0.242, 36, true)
+
+        -- Fila 2: Texto Fase 1 y Fase 2
+        local t1Box = createSmallField(card, "Texto Globo 1", qSpec.t1, 0.015, 0.485, 84, false)
+        local t2Box = createSmallField(card, "Texto Globo 2 (opcional)", qSpec.t2, 0.500, 0.485, 84, false)
+
+        -- Fila 3: Texto Fase 3
+        local t3Box = createSmallField(card, "Texto Globo 3 (opcional)", qSpec.t3, 0.015, 0.970, 132, false)
+
+        local function commitEdits()
+            local newSpec = {
+                audioDelay = math.max(0, tonumber(audioDelayBox.Text) or 0),
+                start      = math.max(0, tonumber(startBox.Text) or 0),
+                split      = math.max(0, tonumber(split1Box.Text) or 0),
+                split2     = math.max(0, tonumber(split2Box.Text) or 0),
+                t1         = t1Box.Text or "",
+                t2         = t2Box.Text or "",
+                t3         = t3Box.Text or "",
+            }
+            CustomQuoteEdits[editKey] = newSpec
+            saveConfig()
+        end
+
+        for _, box in ipairs({audioDelayBox, startBox, split1Box, split2Box, t1Box, t2Box, t3Box}) do
+            box.FocusLost:Connect(commitEdits)
+        end
+
+        copyOneBtn.MouseButton1Click:Connect(function()
+            commitEdits()
+            local singleDump = formatSingleLuaConfig(item)
+            if copyToClipboard then pcall(copyToClipboard, singleDump) end
+            copyOneBtn.Text = "OK"
+            task.delay(1.0, function()
+                if copyOneBtn and copyOneBtn.Parent then copyOneBtn.Text = "COPIAR" end
+            end)
+        end)
+
+        testBtn.MouseButton1Click:Connect(function()
+            commitEdits()
+            playExtraVoiceline(targetAnim, player.Character, nil, item.clipIdx, true)
+        end)
+    end
+end
+
 selectTab("SPIDER-MAN")
 
 -- ==========================================
--- HOOK DE ANIMACIONES, SONIDOS Y MUERTES (SPIDER-MAN + DEMÁS PERSONAJES)
+-- PRE-DESCARGA SILENCIOSA EN SEGUNDO PLANO
 -- ==========================================
-local lastPlay = {}
-local playedTracks = {}
-local hookedSounds = setmetatable({}, {__mode = "k"})
+task.spawn(function()
+    local done = {}
+    for _, v in pairs(TRACKED) do
+        if v.type == "url" and not done[v.src] then
+            done[v.src] = true
+            getAudioSource(v.src, v.key .. "_1", "url")
+        end
+        if v.nextSrc and not done[v.nextSrc] then
+            done[v.nextSrc] = true
+            getAudioSource(v.nextSrc, v.key .. "_2", "url")
+        end
+    end
+    for _, v in pairs(SOUND_TRACKED) do
+        if v.type == "url" and not done[v.src] then
+            done[v.src] = true
+            getAudioSource(v.src, v.key .. "_1", "url")
+        end
+        if v.extraUrl and not done[v.extraUrl] then
+            done[v.extraUrl] = true
+            getAudioSource(v.extraUrl, v.key .. "_extra", "url")
+        end
+    end
+    if not done[DEATH_VOICELINE.src] then
+        done[DEATH_VOICELINE.src] = true
+        getAudioSource(DEATH_VOICELINE.src, DEATH_VOICELINE.key .. "_1", "url")
+    end
+    for _, d in ipairs(EXTRA_ANIM_DATA) do
+        for idx, file in ipairs(d.files) do
+            if not tonumber(file) and not done[file] then
+                done[file] = true
+                getAudioSource(file, "extra_" .. d.id .. "_" .. idx, "url")
+            end
+        end
+    end
+end)
 
-local function muteOriginalSound(sound)
-    if not sound or not sound.Parent then return end
-    sound.Volume = 0
-    pcall(function() sound:Stop() end)
-    sound:GetPropertyChangedSignal("Volume"):Connect(function()
-        if sound and sound.Parent and sound.Volume > 0 then sound.Volume = 0 end
-    end)
-end
+-- ==========================================
+-- RASTREADORES DE ANIMACIONES, SONIDOS Y MUERTE
+-- ==========================================
+local cooldowns = {}
+local lastDeathTime = 0
 
-local function handleReplacedSound(sound, char)
-    if not sound or not sound:IsA("Sound") or sound:GetAttribute("IsCustomVoice") then return end
-    local sid = sound.SoundId:match("%d+")
-    if not sid or not SOUND_TRACKED[sid] then return end
+local function onSoundDetected(soundObj)
+    if not VoicelinesActivas or not soundObj or not soundObj:IsA("Sound") then return end
+    if soundObj:GetAttribute("IsCustomVoice") then return end
 
-    local isOwned = sound:IsDescendantOf(char)
-        or (player:FindFirstChild("PlayerGui") and sound:IsDescendantOf(player.PlayerGui))
-        or sound:IsDescendantOf(SoundService)
+    local id = string.match(tostring(soundObj.SoundId), "%d+")
+    if not id or not SOUND_TRACKED[id] then return end
 
-    if not isOwned and sound:IsDescendantOf(Workspace) then
+    local char = player.Character
+    if not char or not isSpiderManDefault(char) then return end
+
+    if not soundObj:IsDescendantOf(char) and not soundObj:IsDescendantOf(player) then
         local hrp = char:FindFirstChild("HumanoidRootPart")
-        local parentPart = sound.Parent and (sound.Parent:IsA("BasePart") and sound.Parent or sound.Parent:FindFirstAncestorWhichIsA("BasePart"))
-        if hrp and parentPart and (hrp.Position - parentPart.Position).Magnitude <= 35 then
-            isOwned = true
-        end
-    end
-
-    if not isOwned then return end
-
-    muteOriginalSound(sound)
-
-    local last = lastPlay["SPIDEY_SND_" .. sid] or 0
-    if tick() - last < SOUND_TRACKED[sid].cd then return end
-    lastPlay["SPIDEY_SND_" .. sid] = tick()
-
-    playSpiderManSound(SOUND_TRACKED[sid], false, char)
-end
-
-local function watchSoundInstance(sound, char)
-    if not sound or not sound:IsA("Sound") or hookedSounds[sound] or sound:GetAttribute("IsCustomVoice") then
-        return
-    end
-    hookedSounds[sound] = true
-    if sound.IsPlaying then handleReplacedSound(sound, char) end
-    sound.Played:Connect(function() handleReplacedSound(sound, char) end)
-    sound:GetPropertyChangedSignal("Playing"):Connect(function()
-        if sound.Playing then handleReplacedSound(sound, char) end
-    end)
-    sound:GetPropertyChangedSignal("SoundId"):Connect(function()
-        if sound.IsPlaying then handleReplacedSound(sound, char) end
-    end)
-end
-
-local function hasPeloHairMesh(char)
-    if not char then return false end
-    for _, v in ipairs(char:GetDescendants()) do
-        if v:IsA("MeshPart") and v.MeshId and v.MeshId:find(TARGET_HAIR) then
-            return true
-        end
-    end
-    return false
-end
-
-local function hookCharacter(char, plr)
-    local isLocal = (plr == player)
-    local hum = char:WaitForChild("Humanoid", 10)
-    if not hum then return end
-    local animator = hum:WaitForChild("Animator", 10)
-    if not animator then return end
-
-    if isLocal then
-        playedTracks = {}
-
-        local deathTriggered = false
-        local function onLocalDeath()
-            if deathTriggered or not VoicelinesActivas then return end
-            if isSpiderManDefault(char) then
-                deathTriggered = true
-                playSpiderManSound(DEATH_VOICELINE, false, char)
+        local parentPart = soundObj.Parent
+        if parentPart and parentPart:IsA("BasePart") and hrp then
+            if (parentPart.Position - hrp.Position).Magnitude > 25 then
                 return
             end
-            task.spawn(function()
-                task.wait(0.6)
-                for _ = 1, 5 do
-                    if not deathTriggered and hasPeloHairMesh(char) then
-                        deathTriggered = true
-                        local peloData = EXTRA_ANIM_BY_ID[99999999999999]
-                        if peloData then
-                            playExtraVoiceline(peloData, char, nil, 1, false)
-                        end
-                        break
-                    end
-                    task.wait(0.5)
-                end
+        else
+            return
+        end
+    end
+
+    local data = SOUND_TRACKED[id]
+    if data.replaceSoundId == id then
+        pcall(function()
+            soundObj.Volume = 0
+            soundObj:Stop()
+        end)
+    end
+
+    local now = tick()
+    if cooldowns[data.key] and (now - cooldowns[data.key] < data.cd) then return end
+    cooldowns[data.key] = now
+
+    playSpiderManSound(data, false, char)
+end
+
+Workspace.DescendantAdded:Connect(onSoundDetected)
+SoundService.DescendantAdded:Connect(onSoundDetected)
+if player:FindFirstChild("PlayerGui") then
+    player.PlayerGui.DescendantAdded:Connect(onSoundDetected)
+end
+
+local function monitorCharacter(char)
+    if not char then return end
+    local isLocal = (char == player.Character)
+
+    char.DescendantAdded:Connect(function(desc)
+        if isLocal and desc:IsA("Sound") then onSoundDetected(desc) end
+    end)
+
+    task.spawn(function()
+        local hum = char:WaitForChild("Humanoid", 10)
+        if not hum then return end
+
+        if isLocal then
+            hum.Died:Connect(function()
+                if not VoicelinesActivas then return end
+                if not isSpiderManDefault(char) then return end
+                local now = tick()
+                if now - lastDeathTime < 3 then return end
+                lastDeathTime = now
+                playSpiderManSound(DEATH_VOICELINE, false, char)
             end)
         end
 
-        hum.Died:Connect(onLocalDeath)
-        hum.HealthChanged:Connect(function(hp)
-            if hp <= 0 then onLocalDeath() end
-        end)
+        local animator = hum:WaitForChild("Animator", 10)
+        if not animator then return end
 
-        local containers = {char, player:FindFirstChild("PlayerGui"), SoundService, Workspace}
-        for _, container in ipairs(containers) do
-            if container then
-                for _, desc in ipairs(container:GetDescendants()) do
-                    if desc:IsA("Sound") then watchSoundInstance(desc, char) end
+        animator.AnimationPlayed:Connect(function(track)
+            if not VoicelinesActivas then return end
+            local animObj = track.Animation
+            if not animObj then return end
+
+            local idStr = string.match(tostring(animObj.AnimationId), "%d+")
+            if not idStr then return end
+            local idNum = tonumber(idStr)
+
+            -- 1. Cancelar canción de Spider-Man
+            if isLocal and idStr == STOP_SONG_ANIM then
+                if activeSong then stopActiveSong(true) end
+                return
+            end
+
+            -- 2. Voicelines de Spider-Man (solo Default)
+            if isLocal and TRACKED[idStr] then
+                if isSpiderManDefault(char) then
+                    local data = TRACKED[idStr]
+                    local now = tick()
+                    if not cooldowns[data.key] or (now - cooldowns[data.key] >= data.cd) then
+                        cooldowns[data.key] = now
+                        playSpiderManSound(data, false, char)
+                    end
                 end
-                container.DescendantAdded:Connect(function(desc)
-                    if desc:IsA("Sound") then watchSoundInstance(desc, char) end
-                end)
-            end
-        end
-    end
-
-    animator.AnimationPlayed:Connect(function(track)
-        if not VoicelinesActivas or not track or not track.Animation then return end
-        local animIdStr = tostring(track.Animation.AnimationId):match("%d+")
-        if not animIdStr then return end
-        local animIdNum = tonumber(animIdStr)
-
-        if isLocal then
-            if animIdStr == STOP_SONG_ANIM then
-                stopActiveSong(true)
                 return
             end
 
-            local spideyData = TRACKED[animIdStr]
-            if spideyData and not playedTracks[track] then
-                if spideyData.isSong and activeSong then return end
-                local last = lastPlay[spideyData.key] or 0
-                if tick() - last < spideyData.cd then return end
-
-                task.wait(spideyData.isSong and 0.05 or 0.1)
-                if not track.IsPlaying then return end
-
-                lastPlay[spideyData.key] = tick()
-                playedTracks[track] = true
-                track.Stopped:Connect(function() playedTracks[track] = nil end)
-
-                playSpiderManSound(spideyData, false, char)
-                return
+            -- 3. Voicelines de los demás personajes (Jean Grey, Wanda, Wanda Zombie, Carrie, Eleven, Atom)
+            if idNum and EXTRA_ANIM_BY_ID[idNum] then
+                playExtraVoiceline(EXTRA_ANIM_BY_ID[idNum], char, track)
             end
-        end
-
-        if animIdNum and animIdNum ~= 99999999999999 then
-            local extraData = EXTRA_ANIM_BY_ID[animIdNum]
-            if extraData then
-                playExtraVoiceline(extraData, char, track, nil, false)
-            end
-        end
+        end)
     end)
 end
 
-if player.Character then hookCharacter(player.Character, player) end
-player.CharacterAdded:Connect(function(c) hookCharacter(c, player) end)
-
-for _, plr in ipairs(Players:GetPlayers()) do
-    if plr ~= player then
-        if plr.Character then hookCharacter(plr.Character, plr) end
-        plr.CharacterAdded:Connect(function(c) task.wait(0.5); hookCharacter(c, plr) end)
+-- Detección global de animaciones de todos los personajes
+local monitoredChars = setmetatable({}, {__mode = "k"})
+local function tryMonitorChar(char)
+    if not char or monitoredChars[char] then return end
+    if char:FindFirstChildOfClass("Humanoid") then
+        monitoredChars[char] = true
+        monitorCharacter(char)
     end
 end
+
+if player.Character then tryMonitorChar(player.Character) end
+player.CharacterAdded:Connect(function(char)
+    task.wait(0.15)
+    tryMonitorChar(char)
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr.Character then tryMonitorChar(plr.Character) end
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(0.15)
+        tryMonitorChar(char)
+    end)
+end
+
 Players.PlayerAdded:Connect(function(plr)
-    if plr ~= player then
-        plr.CharacterAdded:Connect(function(c) task.wait(0.5); hookCharacter(c, plr) end)
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(0.15)
+        tryMonitorChar(char)
+    end)
+end)
+
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Humanoid") and obj.Parent and obj.Parent:IsA("Model") then
+        tryMonitorChar(obj.Parent)
+    end
+end)
+
+-- ==========================================
+-- DETECTOR DE WANDA ZOMBIE POR PELO (71292732643155)
+-- ==========================================
+local hairDebounce = {}
+
+local function checkWandaZombieHair(char)
+    if not VoicelinesActivas or not char or not char:IsA("Model") then return end
+    if SoloMisVoces and char ~= player.Character then return end
+
+    local foundHair = false
+    for _, d in ipairs(char:GetDescendants()) do
+        if (d:IsA("SpecialMesh") or d:IsA("MeshPart")) and tostring(d.MeshId):find(TARGET_HAIR) then
+            foundHair = true
+            break
+        elseif d:IsA("Accessory") and d.Name:find(TARGET_HAIR) then
+            foundHair = true
+            break
+        end
+    end
+
+    if foundHair then
+        local now = tick()
+        if not hairDebounce[char] or (now - hairDebounce[char] > 10) then
+            hairDebounce[char] = now
+            local zombieData = EXTRA_ANIM_BY_ID[99999999999999]
+            if zombieData then
+                playExtraVoiceline(zombieData, char, nil, 1)
+            end
+        end
+    end
+end
+
+for _, m in ipairs(Workspace:GetDescendants()) do
+    if m:IsA("Model") and m:FindFirstChildOfClass("Humanoid") then
+        task.spawn(function()
+            task.wait(0.3)
+            checkWandaZombieHair(m)
+        end)
+    end
+end
+
+Workspace.DescendantAdded:Connect(function(obj)
+    if (obj:IsA("SpecialMesh") or obj:IsA("MeshPart")) and tostring(obj.MeshId):find(TARGET_HAIR) then
+        local char = obj:FindFirstAncestorOfClass("Model")
+        if char then
+            task.wait(0.15)
+            checkWandaZombieHair(char)
+        end
     end
 end)
