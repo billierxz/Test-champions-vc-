@@ -552,7 +552,7 @@ local EXTRA_ANIM_DATA = {
     {
         id=99999999999999, name="do I look dead?", char="WANDA ZOMBIE", mode="cycle", group="main_nocancel",
         files={"separated_vocal_Nuevo_proyecto_225__C7D937F_.mp3"}, displayNames={"do I look dead?"},
-        quotes={{t1="do I look dead?", start=0, split=0, t2=""}},
+        quotes={{t1="Do I look dead to you?", start=0, split=0, t2=""}},
         defaultVols={5.0}
     },
 
@@ -3182,7 +3182,6 @@ local TAB_DEFS = {
     {id = "ELEVEN",       label = "ELEVEN",       color = Color3.fromRGB(95, 115, 225)},
     {id = "ATOM",         label = "ATOM",         color = Color3.fromRGB(55, 165, 215)},
     {id = "COLOR GLOB",   label = "COLOR GLOB",   color = Color3.fromRGB(65, 155, 235)},
-    {id = "TIEMPOS",      label = "TIEMPOS",      color = Color3.fromRGB(155, 85, 235)},
 }
 
 local tabButtons = {}
@@ -3240,7 +3239,7 @@ for idx, def in ipairs(TAB_DEFS) do
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
     tabButtons[def.id] = btn
-    if def.id == "COLOR GLOB" or def.id == "TIEMPOS" then
+    if def.id == "COLOR GLOB" then
         local frame = Instance.new("Frame")
         frame.Name = "CustomTab_" .. def.id
         frame.Size = UDim2.new(1, -30, 1, -112)
@@ -3293,8 +3292,7 @@ local function createVoicelineCard(parentScroll, config)
     typeDot.Parent = row
     Instance.new("UICorner", typeDot).CornerRadius = UDim.new(1, 0)
 
-    local hasEditBtn = (config.onEditTimings ~= nil)
-    local lblRightPad = hasEditBtn and -186 or -110
+    local lblRightPad = -110
 
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, lblRightPad, 0, 24)
@@ -3308,21 +3306,6 @@ local function createVoicelineCard(parentScroll, config)
     lbl.TextTruncate = Enum.TextTruncate.AtEnd
     lbl.Parent = row
 
-    if hasEditBtn then
-        local editTimeBtn = Instance.new("TextButton")
-        editTimeBtn.Size = UDim2.new(0, 72, 0, 24)
-        editTimeBtn.Position = UDim2.new(1, -162, 0, 9)
-        editTimeBtn.BackgroundColor3 = Color3.fromRGB(115, 65, 200)
-        editTimeBtn.Text = "TIEMPOS"
-        editTimeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        editTimeBtn.Font = Enum.Font.GothamBlack
-        editTimeBtn.TextSize = 10
-        editTimeBtn.Parent = row
-        Instance.new("UICorner", editTimeBtn).CornerRadius = UDim.new(0, 7)
-        editTimeBtn.MouseButton1Click:Connect(function()
-            config.onEditTimings()
-        end)
-    end
 
     local previewAllBtn = Instance.new("TextButton")
     previewAllBtn.Size = UDim2.new(0, 74, 0, 24)
@@ -3618,9 +3601,6 @@ do
                     order = ord,
                     volKey = tostring(d.id) .. "_1",
                     defVol = d.defaultVols[1] or 3.0,
-                    onEditTimings = (d.id == 139183919008648) and function()
-                        selectTab("TIEMPOS")
-                    end or nil,
                     onPreviewAll = function()
                         playExtraVoiceline(d, player.Character, nil, nil, true)
                     end,
@@ -3972,243 +3952,6 @@ do
     end)
 
     rebuildSavedColorsList()
-end
-
--- ==========================================
--- PESTAÑA TIEMPOS: EDITOR DE GLOBOS Y RETRASO DE VOZ + COPIAR TODO
--- ==========================================
-do
-    local tiemposContainer = tabPages["TIEMPOS"]
-    local targetAnim = EXTRA_ANIM_BY_ID[139183919008648]
-
-    local EDITABLE_ITEMS = {
-        {clipIdx = 4, title = "4. They never know", accent = COLOR_CELESTE},
-        {clipIdx = 5, title = "5. I just did.. It feel like that", accent = COLOR_VIOLETA},
-        {clipIdx = 7, title = "7. you have exhausted my patience", accent = COLOR_ROJO},
-        {clipIdx = 8, title = "8. Get out of my way.", accent = COLOR_CELESTE},
-    }
-
-    local function formatSingleLuaConfig(item)
-        local q = getEffectiveQuoteSpec(targetAnim, item.clipIdx)
-        local esc1 = (q.t1 or ""):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n")
-        local esc2 = (q.t2 or ""):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n")
-        local esc3 = (q.t3 or ""):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n")
-        return string.format(
-            '[%d] = { -- %s\n    audioDelay = %s,\n    quote = { t1 = "%s", start = %s, split = %s, t2 = "%s", split2 = %s, t3 = "%s" }\n},',
-            item.clipIdx,
-            item.title,
-            tostring(q.audioDelay or 0),
-            esc1,
-            tostring(q.start or 0),
-            tostring(q.split or 0),
-            esc2,
-            tostring(q.split2 or 0),
-            esc3
-        )
-    end
-
-    local function buildAllLuaConfigText()
-        local lines = {"-- Tiempos de Globos y Voces (Anim: 139183919008648)"}
-        for _, item in ipairs(EDITABLE_ITEMS) do
-            table.insert(lines, formatSingleLuaConfig(item))
-        end
-        return table.concat(lines, "\n")
-    end
-
-    -- Barra superior de acciones (COPIAR TODO)
-    local headerBar = Instance.new("Frame")
-    headerBar.Size = UDim2.new(1, -6, 0, 46)
-    headerBar.Position = UDim2.new(0, 3, 0, 2)
-    headerBar.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-    headerBar.Parent = tiemposContainer
-    Instance.new("UICorner", headerBar).CornerRadius = UDim.new(0, 12)
-
-    local hStroke = Instance.new("UIStroke", headerBar)
-    hStroke.Color = Color3.fromRGB(50, 50, 68)
-    hStroke.Thickness = 1
-
-    local hTitle = Instance.new("TextLabel")
-    hTitle.Size = UDim2.new(1, -138, 1, 0)
-    hTitle.Position = UDim2.new(0, 12, 0, 0)
-    hTitle.BackgroundTransparency = 1
-    hTitle.Text = "AJUSTE DE TIEMPOS (SEGUNDOS)"
-    hTitle.TextColor3 = Color3.fromRGB(215, 225, 250)
-    hTitle.Font = Enum.Font.GothamBlack
-    hTitle.TextSize = 11
-    hTitle.TextXAlignment = Enum.TextXAlignment.Left
-    hTitle.Parent = headerBar
-
-    local copyAllBtn = Instance.new("TextButton")
-    copyAllBtn.Size = UDim2.new(0, 118, 0, 30)
-    copyAllBtn.Position = UDim2.new(1, -126, 0.5, -15)
-    copyAllBtn.BackgroundColor3 = Color3.fromRGB(65, 115, 240)
-    copyAllBtn.Text = "COPIAR TODO"
-    copyAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    copyAllBtn.Font = Enum.Font.GothamBlack
-    copyAllBtn.TextSize = 11
-    copyAllBtn.Parent = headerBar
-    Instance.new("UICorner", copyAllBtn).CornerRadius = UDim.new(0, 8)
-
-    copyAllBtn.MouseButton1Click:Connect(function()
-        local dump = buildAllLuaConfigText()
-        if copyToClipboard then pcall(copyToClipboard, dump) end
-        copyAllBtn.Text = "¡COPIADO!"
-        task.delay(1.2, function()
-            if copyAllBtn and copyAllBtn.Parent then copyAllBtn.Text = "COPIAR TODO" end
-        end)
-    end)
-
-    local tScroll = Instance.new("ScrollingFrame")
-    tScroll.Size = UDim2.new(1, -6, 1, -56)
-    tScroll.Position = UDim2.new(0, 3, 0, 54)
-    tScroll.BackgroundTransparency = 1
-    tScroll.ScrollBarThickness = 4
-    tScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 130)
-    tScroll.Parent = tiemposContainer
-
-    local tLayout = Instance.new("UIListLayout", tScroll)
-    tLayout.Padding = UDim.new(0, 10)
-    tLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-    RunService.RenderStepped:Connect(function()
-        if tScroll and tScroll.Parent then
-            tScroll.CanvasSize = UDim2.new(0, 0, 0, tLayout.AbsoluteContentSize.Y + 14)
-        end
-    end)
-
-    local function createSmallField(parent, labelText, initialValue, xScale, wScale, yPos, isNumber)
-        local holder = Instance.new("Frame")
-        holder.Size = UDim2.new(wScale, -6, 0, 42)
-        holder.Position = UDim2.new(xScale, 3, 0, yPos)
-        holder.BackgroundTransparency = 1
-        holder.Parent = parent
-
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 0, 14)
-        lbl.Position = UDim2.new(0, 2, 0, 0)
-        lbl.BackgroundTransparency = 1
-        lbl.Text = labelText
-        lbl.TextColor3 = Color3.fromRGB(165, 175, 205)
-        lbl.Font = Enum.Font.GothamBold
-        lbl.TextSize = 9
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Parent = holder
-
-        local box = Instance.new("TextBox")
-        box.Size = UDim2.new(1, 0, 0, 25)
-        box.Position = UDim2.new(0, 0, 0, 16)
-        box.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
-        box.Text = tostring(initialValue)
-        box.PlaceholderText = isNumber and "0" or ""
-        box.PlaceholderColor3 = Color3.fromRGB(95, 100, 120)
-        box.TextColor3 = Color3.fromRGB(255, 255, 255)
-        box.Font = Enum.Font.GothamBold
-        box.TextSize = 11
-        box.TextXAlignment = isNumber and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
-        box.ClearTextOnFocus = false
-        box.Parent = holder
-        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
-        if not isNumber then
-            Instance.new("UIPadding", box).PaddingLeft = UDim.new(0, 6)
-        end
-        return box
-    end
-
-    for ordIdx, item in ipairs(EDITABLE_ITEMS) do
-        local qSpec = getEffectiveQuoteSpec(targetAnim, item.clipIdx)
-        local editKey = tostring(targetAnim.id) .. "_" .. tostring(item.clipIdx)
-
-        local card = Instance.new("Frame")
-        card.Size = UDim2.new(1, -8, 0, 182)
-        card.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-        card.LayoutOrder = ordIdx
-        card.Parent = tScroll
-        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
-
-        local cStroke = Instance.new("UIStroke", card)
-        cStroke.Color = Color3.fromRGB(42, 42, 56)
-        cStroke.Thickness = 1
-
-        local cTitle = Instance.new("TextLabel")
-        cTitle.Size = UDim2.new(1, -142, 0, 24)
-        cTitle.Position = UDim2.new(0, 12, 0, 8)
-        cTitle.BackgroundTransparency = 1
-        cTitle.Text = item.title
-        cTitle.TextColor3 = item.accent
-        cTitle.Font = Enum.Font.GothamBlack
-        cTitle.TextSize = 12
-        cTitle.TextXAlignment = Enum.TextXAlignment.Left
-        cTitle.TextTruncate = Enum.TextTruncate.AtEnd
-        cTitle.Parent = card
-
-        local copyOneBtn = Instance.new("TextButton")
-        copyOneBtn.Size = UDim2.new(0, 56, 0, 22)
-        copyOneBtn.Position = UDim2.new(1, -126, 0, 9)
-        copyOneBtn.BackgroundColor3 = Color3.fromRGB(36, 38, 52)
-        copyOneBtn.Text = "COPIAR"
-        copyOneBtn.TextColor3 = Color3.fromRGB(215, 225, 255)
-        copyOneBtn.Font = Enum.Font.GothamBlack
-        copyOneBtn.TextSize = 9
-        copyOneBtn.Parent = card
-        Instance.new("UICorner", copyOneBtn).CornerRadius = UDim.new(0, 6)
-
-        local testBtn = Instance.new("TextButton")
-        testBtn.Size = UDim2.new(0, 58, 0, 22)
-        testBtn.Position = UDim2.new(1, -66, 0, 9)
-        testBtn.BackgroundColor3 = Color3.fromRGB(55, 95, 210)
-        testBtn.Text = "▶ PROBAR"
-        testBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        testBtn.Font = Enum.Font.GothamBlack
-        testBtn.TextSize = 9
-        testBtn.Parent = card
-        Instance.new("UICorner", testBtn).CornerRadius = UDim.new(0, 6)
-
-        -- Fila 1 de tiempos (segundos): Espera Audio, Inicio Globo, Pausa 1->2, Pausa 2->3
-        local audioDelayBox = createSmallField(card, "Espera Voz (s)", qSpec.audioDelay, 0.015, 0.242, 36, true)
-        local startBox      = createSmallField(card, "Globo Ini (s)",  qSpec.start,      0.258, 0.242, 36, true)
-        local split1Box     = createSmallField(card, "Pausa 1→2 (s)",  qSpec.split,      0.500, 0.242, 36, true)
-        local split2Box     = createSmallField(card, "Pausa 2→3 (s)",  qSpec.split2,     0.742, 0.242, 36, true)
-
-        -- Fila 2: Texto Fase 1 y Fase 2
-        local t1Box = createSmallField(card, "Texto Globo 1", qSpec.t1, 0.015, 0.485, 84, false)
-        local t2Box = createSmallField(card, "Texto Globo 2 (opcional)", qSpec.t2, 0.500, 0.485, 84, false)
-
-        -- Fila 3: Texto Fase 3
-        local t3Box = createSmallField(card, "Texto Globo 3 (opcional)", qSpec.t3, 0.015, 0.970, 132, false)
-
-        local function commitEdits()
-            local newSpec = {
-                audioDelay = math.max(0, tonumber(audioDelayBox.Text) or 0),
-                start      = math.max(0, tonumber(startBox.Text) or 0),
-                split      = math.max(0, tonumber(split1Box.Text) or 0),
-                split2     = math.max(0, tonumber(split2Box.Text) or 0),
-                t1         = t1Box.Text or "",
-                t2         = t2Box.Text or "",
-                t3         = t3Box.Text or "",
-            }
-            CustomQuoteEdits[editKey] = newSpec
-            saveConfig()
-        end
-
-        for _, box in ipairs({audioDelayBox, startBox, split1Box, split2Box, t1Box, t2Box, t3Box}) do
-            box.FocusLost:Connect(commitEdits)
-        end
-
-        copyOneBtn.MouseButton1Click:Connect(function()
-            commitEdits()
-            local singleDump = formatSingleLuaConfig(item)
-            if copyToClipboard then pcall(copyToClipboard, singleDump) end
-            copyOneBtn.Text = "OK"
-            task.delay(1.0, function()
-                if copyOneBtn and copyOneBtn.Parent then copyOneBtn.Text = "COPIAR" end
-            end)
-        end)
-
-        testBtn.MouseButton1Click:Connect(function()
-            commitEdits()
-            playExtraVoiceline(targetAnim, player.Character, nil, item.clipIdx, true)
-        end)
-    end
 end
 
 selectTab("SPIDER-MAN")
