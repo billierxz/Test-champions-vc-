@@ -528,11 +528,11 @@ local EXTRA_ANIM_DATA = {
             {t1="I've come to ease", start=0, split=0.9, t2="your pain"},
             {t1="I warned you.", start=0, split=0, t2=""},
             {t1="And I want you", start=0, split=2, t2="to leave"},
-            {t1="They never", start=0, split=1, t2="know"},
-            {t1="I just did..", start=0, split=2, t2="do know how it felt?", split2=2, t3="it feel like that"},
+            {t1="They never", start=0, split=0.4, t2="know", split2=0, t3="", audioDelay=0},
+            {t1="I just did..", start=0, split=0.8, t2="do know how it felt?", split2=2, t3="it feel like that", audioDelay=0},
             {t1="They've waiting for me..", start=0, split=0, t2=""},
-            {t1="you have exhausted my patience", start=0, split=0, t2=""},
-            {t1="Get out of my way.", start=0, split=0, t2=""}
+            {t1="you have exhausted my patience", start=0.4, split=0.8, t2="", split2=0, t3="", audioDelay=0},
+            {t1="Get out", start=0, split=0, t2="of my way.", split2=0, t3="", audioDelay=0}
         },
         defaultVols={3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0},
         nocancel={true, true, true, true, true, true, true, true},
@@ -550,9 +550,9 @@ local EXTRA_ANIM_DATA = {
         defaultVols={3.0, 3.0}, nocancel={true, true}
     },
     {
-        id=99999999999999, name="wanda zombie", char="WANDA ZOMBIE", mode="cycle", group="main_nocancel",
-        files={"separated_vocal_Nuevo_proyecto_225__C7D937F_.mp3"}, displayNames={"wanda zombie"},
-        quotes={{t1="Do I look dead to you?", start=0, split=0, t2=""}},
+        id=99999999999999, name="do I look dead?", char="WANDA ZOMBIE", mode="cycle", group="main_nocancel",
+        files={"separated_vocal_Nuevo_proyecto_225__C7D937F_.mp3"}, displayNames={"do I look dead?"},
+        quotes={{t1="do I look dead?", start=0, split=0, t2=""}},
         defaultVols={5.0}
     },
 
@@ -4401,52 +4401,95 @@ Workspace.DescendantAdded:Connect(function(obj)
 end)
 
 -- ==========================================
--- DETECTOR DE WANDA ZOMBIE POR PELO (71292732643155)
 -- ==========================================
-local hairDebounce = {}
+-- DETECTOR DE WANDA ZOMBIE POR PELO (71292732643155)
+-- FIX: antes sonaba al aparecer / al cargar el pelo en cualquier parte.
+-- Ahora SOLO suena 1 vez cuando ESE personaje muere, y SOLO si es Queen.
+-- ==========================================
+local zombieDeathArmed = setmetatable({}, {__mode = "k"}) -- [char] = true, se borra al respawnear (nuevo char = nueva vida)
+local zombieDeathFired = setmetatable({}, {__mode = "k"}) -- [char] = true, 1 vez por vida
 
-local function checkWandaZombieHair(char)
-    if not VoicelinesActivas or not char or not char:IsA("Model") then return end
-    if SoloMisVoces and char ~= player.Character then return end
-
-    local foundHair = false
+local function hasWandaZombieHair(char)
+    if not char or not char:IsA("Model") then return false end
     for _, d in ipairs(char:GetDescendants()) do
         if (d:IsA("SpecialMesh") or d:IsA("MeshPart")) and tostring(d.MeshId):find(TARGET_HAIR) then
-            foundHair = true
-            break
+            return true
         elseif d:IsA("Accessory") and d.Name:find(TARGET_HAIR) then
-            foundHair = true
-            break
+            return true
         end
     end
-
-    if foundHair then
-        local now = tick()
-        if not hairDebounce[char] or (now - hairDebounce[char] > 10) then
-            hairDebounce[char] = now
-            local zombieData = EXTRA_ANIM_BY_ID[99999999999999]
-            if zombieData then
-                playExtraVoiceline(zombieData, char, nil, 1)
-            end
-        end
-    end
+    return false
 end
 
+local function armZombieDeath(char)
+    if not char or not char:IsA("Model") then return end
+    if zombieDeathArmed[char] then return end
+    if not hasWandaZombieHair(char) then return end
+    -- Solo armar si es Queen en este momento; si el morph cambia despues,
+    -- en el momento de morir se vuelve a verificar isQueenOfTheDeadMorph.
+    -- Si aun no se detecta Queen aqui, no armar todavia: el DescendantAdded
+    -- del pelo / un reintento al morir lo cubre. Para no perder el caso en
+    -- que Queen ya estaba puesta, armar solo si es Queen.
+    if not isQueenOfTheDeadMorph(char) then return end
+    zombieDeathArmed[char] = true
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    hum.Died:Connect(function()
+        if not VoicelinesActivas then return end
+        if SoloMisVoces and char ~= player.Character then return end
+        if zombieDeathFired[char] then return end
+        -- Re-verificar Queen JUSTO al morir: si ya no es Queen, no suena.
+        if not isQueenOfTheDeadMorph(char) then return end
+        if not hasWandaZombieHair(char) then return end
+        zombieDeathFired[char] = true
+        local zombieData = EXTRA_ANIM_BY_ID[99999999999999]
+        if zombieData then
+            playExtraVoiceline(zombieData, char, nil, 1)
+        end
+    end)
+end
+
+-- Personajes que ya estan en el juego al ejecutar el script
 for _, m in ipairs(Workspace:GetDescendants()) do
     if m:IsA("Model") and m:FindFirstChildOfClass("Humanoid") then
         task.spawn(function()
             task.wait(0.3)
-            checkWandaZombieHair(m)
+            armZombieDeath(m)
         end)
     end
 end
 
+-- Cuando aparece un personaje nuevo (respawn / morph / entra otro jugador)
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Humanoid") and obj.Parent and obj.Parent:IsA("Model") then
+        local char = obj.Parent
+        task.spawn(function()
+            task.wait(0.3)
+            armZombieDeath(char)
+        end)
+    end
+end)
+
+-- Cuando aparece el pelo (morph a Queen / cambio de skin): solo ARMAR,
+-- nunca reproducir aqui. El sonido solo sale en hum.Died.
 Workspace.DescendantAdded:Connect(function(obj)
     if (obj:IsA("SpecialMesh") or obj:IsA("MeshPart")) and tostring(obj.MeshId):find(TARGET_HAIR) then
         local char = obj:FindFirstAncestorOfClass("Model")
         if char then
-            task.wait(0.15)
-            checkWandaZombieHair(char)
+            task.spawn(function()
+                task.wait(0.15)
+                armZombieDeath(char)
+            end)
         end
     end
+end)
+
+-- Respaldo: si el pelo / Queen se detectan tarde, reintentar armar cada
+-- que un personaje muere ya esta cubierto por Died, pero si el Humanoid
+-- aun no existia al armar, este chequeo lo vuelve a intentar al spawnear.
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        armZombieDeath(char)
+    end)
 end)
